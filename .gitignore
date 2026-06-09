@@ -1,0 +1,8 @@
+.env
+__pycache__
+.DS_STORE
+.venv
+.venv/
+../
+.tfstate
+infra/*

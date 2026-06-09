@@ -1,0 +1,18 @@
+<!-- frontend/index.html -->
+<input type="file" id="f">
+<button onclick="go()">upload</button>
+<pre id="log"></pre>
+<script>
+const log = m => document.getElementById('log').textContent += m + "\n";
+async function go() {
+  const file = document.getElementById('f').files[0];
+  if (!file) return log("pick a file first");
+  const fd = new FormData(); fd.append("file", file);
+  const r = await fetch("/api/upload", { method: "POST", body: fd });
+  const { job_id } = await r.json();
+  log("job " + job_id);
+  const ws = new WebSocket(`ws://${location.host}/ws/${job_id}`);
+  ws.onmessage = e => log(e.data);
+  ws.onclose = () => log("(socket closed)");
+}
+</script>
