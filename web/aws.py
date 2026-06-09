@@ -2,6 +2,7 @@
 
 import os, json, boto3
 
+
 S3_BUCKET   = os.environ["S3_BUCKET"]
 SQS_URL     = os.environ["SQS_QUEUE_URL"]
 REGION      = os.environ.get("AWS_REGION", "us-east-1")

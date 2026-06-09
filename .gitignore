@@ -9,3 +9,4 @@ infra/*
 CLAUDE.md
 .gitignore
 *.tfvars
+sample_audio/youtube/*
