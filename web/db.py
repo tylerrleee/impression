@@ -3,7 +3,13 @@ from pgvector.psycopg import register_vector
 
 DSN = os.environ["DATABASE_URL"]
 
-
+def get_s3_key(job_id):
+    with psycopg.connect(DSN) as c, c.cursor() as cur:
+        cur.execute("SELECT s3_key FROM jobs WHERE id=%s", 
+                    (job_id,))
+        row = cur.fetchone()
+        return row[0] if row else None
+    
 def search_chunks(vec, k = 5):
     with psycopg.connect(DSN) as conn:
         register_vector(conn)

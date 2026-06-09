@@ -5,7 +5,7 @@ The WS handler is async, so its blocking DB read goes through asyncio.to_thread.
 
 """
 import uuid, asyncio
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
 from . import aws, db
 from sentence_transformers import SentenceTransformer
@@ -36,6 +36,14 @@ def search(q: str, k: int = 5):
     rows = db.search_chunks(vec, k)
     return [{"job_id": r[0], "start": round(r[1], 1),
              "end": round(r[2], 1), "text": r[3]} for r in rows]
+
+@app.get("/api/audio_url")
+def audio_url(job_id: str):
+    key = db.get_s3_key(job_id)
+    if not key:
+        raise HTTPException(404, "job not found")
+
+    return {"url": aws.presign_audio(key)}
 
 @app.websocket("/ws/{job_id}")
 async def progress(ws: WebSocket, job_id: str):

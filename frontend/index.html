@@ -20,13 +20,34 @@ async function go() {
 <hr>
 <input id="q" placeholder="search the archive">
 <button onclick="search()">search</button>
-<pre id="results"></pre>
+<div id="results"></div>
+<audio id="player" controls style="width:100%;margin-top:8px"></audio>
 <script>
 async function search() {
   const q = document.getElementById('q').value;
   const r = await fetch('/api/search?q=' + encodeURIComponent(q));
   const rows = await r.json();
-  document.getElementById('results').textContent =
-    rows.map(x => `[${x.start}s - ${x.end}s] ${x.text}`).join("\n\n");
+  const box = document.getElementById('results');
+  box.innerHTML = '';
+  rows.forEach(x => {
+    const div = document.createElement('div');
+    div.style.margin = '6px 0';
+    const btn = document.createElement('button');
+    btn.textContent = '▶ ' + x.start + 's';
+    btn.onclick = () => play(x.job_id, x.start);
+    div.append(btn, ' ' + x.text);
+    box.appendChild(div);
+  });
+}
+async function play(jobId, startSec) {
+  const { url } = await (await fetch('/api/audio_url?job_id=' + jobId)).json();
+  const player = document.getElementById('player');
+  player.src = url;
+  player.addEventListener('loadedmetadata', function once() {
+    player.removeEventListener('loadedmetadata', once);
+    player.currentTime = startSec;
+    player.play();
+  });
+  player.load();
 }
 </script>
