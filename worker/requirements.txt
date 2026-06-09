@@ -1,3 +1,5 @@
 boto3
 psycopg[binary]
 faster-whisper
+pgvector
+sentence-transformers

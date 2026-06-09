@@ -1,6 +1,8 @@
 import os, time, json, boto3, psycopg
 import tempfile
 from faster_whisper import WhisperModel
+from sentence_transformers import SentenceTransformer
+from pgvector.psycopg import register_vector
 
 SQS_URL = os.environ["SQS_QUEUE_URL"]
 DSN     = os.environ["DATABASE_URL"]
@@ -15,6 +17,26 @@ print(f"loading whisper model: {MODEL_SIZE}", flush=True)
 model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="int8")
 print("model ready", flush=True)
 
+embedder = SentenceTransformer("all-MiniLM-L6-v2") 
+print("embedder ready", flush=True)
+
+def window_segments(segments, target_sec = 45):
+    chunks, cur, start = [], [], None
+    for seg in segments:
+        if not cur:
+            start = seg["start"]
+        cur.append(seg)
+        if seg["end"] - start >= target_sec:
+            chunks.append({"start" : start,
+                           "end" : seg["end"],
+                           "text" : " ".join(s["text"] for s in cur).strip()}
+                           )
+            cur = []
+    if cur:
+        chunks.append({"start" : start,
+                       "end" : cur[-1]["end"],
+                       "text" : " ".join(s["text"] for s in cur).strip()})
+    return chunks
 
 def set_status(job_id, status, progress, transcript=None):
     with psycopg.connect(DSN) as c, c.cursor() as cur:
@@ -26,11 +48,28 @@ def set_status(job_id, status, progress, transcript=None):
             , (status, progress, job_id))
 
 def save_result(job_id, transcript, segments):
-    with psycopg.connect(DSN) as c, c.cursor() as cur:
-        cur.execute(
-            "UPDATE jobs SET status='done', progress=100, "
-            "transcript=%s, segments=%s WHERE id=%s",
-            (transcript, json.dumps(segments), job_id))
+    transcript = " ".join(s["text"] for s in segments)
+    chunks     = window_segments(segments)
+    vectors    = embedder.encode([c["text"] for c in chunks],
+                                 normalize_embeddings = True)
+    
+    with psycopg.connect(DSN) as conn:
+        register_vector(conn)
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM chunks WHERE job_id=%s", (job_id,))
+            for c, v in zip(chunks, vectors):
+                cur.execute(
+                    "INSERT INTO chunks (job_id, start_sec, end_sec, text, embedding) " \
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (job_id, c["start"], c["end"], c["text"], v)
+                )
+            cur.execute(
+                "UPDATE jobs SET status='done' , progress = 100," \
+                "transcript=%s , segments=%s WHERE id=%s",
+                (transcript, json.dumps(segments), job_id)
+            )
+    print("done", job_id, f"({len(chunks)} chunks)", flush=True)
+
         
 
 def handle(job_id, s3_key):

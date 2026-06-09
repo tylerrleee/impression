@@ -8,10 +8,13 @@ import uuid, asyncio
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from . import aws, db
+from sentence_transformers import SentenceTransformer
 
 app = FastAPI()
+embedder = SentenceTransformer("all-MiniLM-L6-v2")   # same model as the worker
 
 @app.get("/")
+
 
 def index():
     return FileResponse("frontend/index.html")
@@ -26,6 +29,13 @@ def upload(file: UploadFile = File(...)):
     db.create_job(job_id, s3_key)
     aws.enqueue_job(job_id, s3_key)
     return {"job_id": job_id}
+
+@app.get("/api/search")
+def search(q: str, k: int = 5):
+    vec  = embedder.encode(q, normalize_embeddings=True)
+    rows = db.search_chunks(vec, k)
+    return [{"job_id": r[0], "start": round(r[1], 1),
+             "end": round(r[2], 1), "text": r[3]} for r in rows]
 
 @app.websocket("/ws/{job_id}")
 async def progress(ws: WebSocket, job_id: str):

@@ -7,3 +7,14 @@ CREATE TABLE IF NOT EXISTS jobs (
   segments    JSONB,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS chunks (
+  id        BIGSERIAL PRIMARY KEY,
+  job_id    TEXT NOT NULL REFERENCES jobs(id),
+  start_sec REAL NOT NULL,
+  end_sec   REAL NOT NULL,
+  text      TEXT NOT NULL,
+  embedding VECTOR(384)
+);

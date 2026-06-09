@@ -3,3 +3,5 @@ uvicorn[standard]
 boto3
 psycopg[binary]
 python-multipart
+sentence-transformers 
+pgvector

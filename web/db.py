@@ -1,7 +1,19 @@
 import os, psycopg
+from pgvector.psycopg import register_vector
 
 DSN = os.environ["DATABASE_URL"]
 
+
+def search_chunks(vec, k = 5):
+    with psycopg.connect(DSN) as conn:
+        register_vector(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT job_id, start_sec, end_sec, text "
+                "FROM chunks ORDER BY embedding <=> %s LIMIT %s",
+                (vec, k))
+            return cur.fetchall()
+        
 def create_job( job_id: str, s3_key: str) -> None:
     with psycopg.connect(DSN) as c, c.cursor() as cur:
         cur.execute(

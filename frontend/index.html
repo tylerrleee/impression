@@ -16,3 +16,17 @@ async function go() {
   ws.onclose = () => log("(socket closed)");
 }
 </script>
+
+<hr>
+<input id="q" placeholder="search the archive">
+<button onclick="search()">search</button>
+<pre id="results"></pre>
+<script>
+async function search() {
+  const q = document.getElementById('q').value;
+  const r = await fetch('/api/search?q=' + encodeURIComponent(q));
+  const rows = await r.json();
+  document.getElementById('results').textContent =
+    rows.map(x => `[${x.start}s - ${x.end}s] ${x.text}`).join("\n\n");
+}
+</script>

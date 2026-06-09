@@ -6,3 +6,5 @@ __pycache__
 ../
 .tfstate
 infra/*
+CLAUDE.md
+.gitignore
