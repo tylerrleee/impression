@@ -70,9 +70,19 @@ def save_result(job_id, transcript, segments):
             )
     print("done", job_id, f"({len(chunks)} chunks)", flush=True)
 
-        
+def job_done(job_id):
+    """ Idempotent retries to avoid reprocessing if duplicate jobs"""
+    with psycopg.connect(DSN) as c, c.cursor() as cur:
+        cur.execute("SELECT status FROM jobs WHERE id=%s", (job_id,))
+        row = cur.fetchone()
+        return bool(row) and row[0] == "done"
 
 def handle(job_id, s3_key):
+    
+    if job_done(job_id):
+        print("Skipping job, already done ", job_id, flush = True)
+        return
+    
     set_status(job_id, "processing", 0)
     fd, path = tempfile.mkstemp(suffix = os.path.splitext(s3_key)[1])
     os.close(fd)
