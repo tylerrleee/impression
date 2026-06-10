@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   progress    INT  NOT NULL DEFAULT 0,
   transcript  TEXT,
   segments    JSONB,
+  title       TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

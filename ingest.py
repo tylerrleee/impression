@@ -25,6 +25,7 @@ for name in sorted(os.listdir(folder)):
     s3_key = f"uploads/{job_id}/{name}"
     with open(path, "rb") as f:
         aws.put_audio(s3_key, f.read(), CONTENT_TYPES[ext])
-    db.create_job(job_id, s3_key)
+    title = os.path.splitext(name)[0]
+    db.create_job(job_id, s3_key, title=title)
     aws.enqueue_job(job_id, s3_key)
     print("queued", name, job_id)

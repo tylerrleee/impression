@@ -4,7 +4,7 @@ so FastAPI runs it in a threadpool and the blocking boto3 calls don't stall the 
 The WS handler is async, so its blocking DB read goes through asyncio.to_thread.
 
 """
-import uuid, asyncio
+import uuid, asyncio, os
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
 from . import aws, db
@@ -26,7 +26,8 @@ def upload(file: UploadFile = File(...)):
     job_id = str(uuid.uuid4())
     s3_key = f"uploads/{job_id}/{file.filename}"
     aws.put_audio(s3_key, file.file.read(), file.content_type or "application/octet-stream")
-    db.create_job(job_id, s3_key)
+    title = os.path.splitext(file.filename)[0] if file.filename else None
+    db.create_job(job_id, s3_key, title=title)
     aws.enqueue_job(job_id, s3_key)
     return {"job_id": job_id}
 
@@ -35,7 +36,8 @@ def search(q: str, k: int = 5):
     vec  = embedder.encode(q, normalize_embeddings=True)
     rows = db.search_chunks(vec, k)
     return [{"job_id": r[0], "start": round(r[1], 1),
-             "end": round(r[2], 1), "text": r[3]} for r in rows]
+             "end": round(r[2], 1), "text": r[3],
+             "title": r[4]} for r in rows]
 
 @app.get("/api/audio_url")
 def audio_url(job_id: str):
