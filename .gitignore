@@ -13,3 +13,7 @@ sample_audio/youtube/*
 
 eval.py
 docker-compose.yml
+tyle2.pem
+.claude
+.claude/*
+*.claude
