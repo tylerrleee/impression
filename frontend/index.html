@@ -40,14 +40,10 @@ async function search() {
   });
 }
 async function play(jobId, startSec) {
-  const { url } = await (await fetch('/api/audio_url?job_id=' + jobId)).json();
   const player = document.getElementById('player');
+  const { url } = await (await fetch('/api/audio_url?job_id=' + jobId)).json();
   player.src = url;
-  player.addEventListener('loadedmetadata', function once() {
-    player.removeEventListener('loadedmetadata', once);
-    player.currentTime = startSec;
-    player.play();
-  });
-  player.load();
+  player.addEventListener('loadedmetadata', () => { player.currentTime = startSec; }, { once: true });
+  player.play().catch(err => console.warn('autoplay blocked, press play:', err));
 }
 </script>
