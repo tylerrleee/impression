@@ -12,6 +12,14 @@ someone *said* the thing, and the player seeks straight to it.
 
 ## Why I built this
 
+I like the idea of podcasts and listening to them (espcially Rotten Mango, The Peterman, Hasan Minhaj..). However, I do not usually seem to be able to remember much of the content, and backtracking is a hassle. 
+I don't want to eyeball the exact timestamp or the exact podcast that I listened to when I went to the gym a few days ago. 
+
+This tool helps -- and I hope it will for others -- me interact with a piece of auxiliary in a more approachable manner, 
+
+
+## TLDR
+
 Type a query like *"What are the signals for SpaceX before they IPO"* and get back the
 exact n-segments of where a speaker discussed that idea, even if they never
 used those words. Click play and the audio jumps to that timestamp.
