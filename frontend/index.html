@@ -103,19 +103,45 @@
   .idle input:focus{outline:none}
   .idle .hint{font-size:13px; color:var(--ink-soft); font-family:var(--mono)}
 
-  /* result quote */
-  .quote{font-size:30px; line-height:1.4; color:var(--ink)}
-  .quote .tc{font-weight:700; color:var(--ink-bold)}
-  .attrib{margin-top:18px; text-align:right; font-size:20px; font-style:italic; color:var(--ink-soft); line-height:1.3}
-  .attrib a{color:var(--ink-soft); text-decoration:underline; text-underline-offset:3px}
-  .attrib a:hover{color:var(--ink)}
+  /* result header */
+  .result-header{margin-bottom:12px}
+  .category{
+    display:inline-block; font-family:var(--mono); font-size:11px;
+    text-transform:uppercase; letter-spacing:.12em; color:var(--ink-soft);
+    border:1px solid rgba(0,0,0,.15); border-radius:3px;
+    padding:2px 8px; margin-bottom:6px;
+  }
+  .result-title{
+    font-size:20px; font-weight:600; line-height:1.3; color:var(--ink-bold); margin:0;
+  }
+  .result-title a{color:var(--ink-bold); text-decoration:underline; text-underline-offset:3px}
+  .result-title a:hover{color:var(--ink)}
 
-  /* message states (no match, error, searching) */
+  /* scrollable transcript */
+  .transcript-scroll{
+    flex:1; overflow-y:auto; padding-right:6px;
+    max-height:260px; min-height:80px;
+    font-size:16px; line-height:1.6; color:var(--ink-soft);
+    scroll-behavior:smooth;
+  }
+  .transcript-scroll::-webkit-scrollbar{width:4px}
+  .transcript-scroll::-webkit-scrollbar-track{background:transparent}
+  .transcript-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18); border-radius:2px}
+  .chunk-span{cursor:pointer; transition:color .15s, background .15s; border-radius:2px; padding:0 1px}
+  .chunk-span:hover{background:rgba(0,0,0,.06)}
+  .chunk-span.active{color:var(--ink-bold); font-weight:600}
+  .chunk-ts{
+    font-family:var(--mono); font-size:12px; font-weight:700;
+    color:var(--brass-mid); margin-right:2px; cursor:pointer;
+  }
+  .chunk-ts:hover{text-decoration:underline}
+
+  /* message states */
   .msg{font-size:22px; line-height:1.5; color:var(--ink-soft)}
   .msg-mono{font-family:var(--mono); font-size:14px; color:var(--ink-soft)}
 
   /* player */
-  .player{margin-top:auto; padding-top:14px; display:none}
+  .player{padding-top:14px; padding-bottom:4px; display:none}
   .player.show{display:block}
   .player .rule{height:1px; background:rgba(0,0,0,.14); margin:0 0 12px}
   .controls{display:flex; align-items:center; gap:14px}
@@ -133,7 +159,6 @@
   .scrub::-webkit-slider-thumb{-webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--brass-mid); margin-top:-5px; box-shadow:0 1px 2px rgba(0,0,0,.4)}
   .scrub::-moz-range-thumb{width:12px; height:12px; border:0; border-radius:50%; background:var(--brass-mid)}
   .scrub:focus-visible{outline:3px solid var(--brass-mid); outline-offset:4px; border-radius:4px}
-  .caption{margin-top:10px; font-size:15px; line-height:1.45; color:var(--ink-soft); min-height:1.45em}
 
   /* hidden until search */
   .result-view{display:none}
@@ -153,7 +178,9 @@
   .footer a{color:inherit}
 
   @media (max-width:600px){
-    .quote{font-size:22px} .idle input{font-size:22px} .attrib{font-size:17px}
+    .result-title{font-size:17px}
+    .transcript-scroll{max-height:200px; font-size:15px}
+    .idle input{font-size:22px}
     .screen{min-height:300px; padding:24px 22px 14px}
     .knob{right:-12px; width:24px; height:60px}
     .nav button{min-width:44px; min-height:44px}
@@ -184,10 +211,16 @@
 
               <!-- RESULT -->
               <div class="result-view" id="resultView">
-                <div>
-                  <p class="quote" id="quote"></p>
-                  <p class="attrib" id="attrib"></p>
+                <!-- header: category + title -->
+                <div class="result-header">
+                  <span class="category" id="categoryTag"></span>
+                  <h2 class="result-title" id="resultTitle"></h2>
                 </div>
+
+                <!-- scrollable unified transcript -->
+                <div class="transcript-scroll" id="transcriptScroll"></div>
+
+                <!-- player above IMPRESSION -->
                 <div class="player" id="playerBar">
                   <div class="rule"></div>
                   <div class="controls">
@@ -196,7 +229,6 @@
                     <input class="scrub" id="scrub" type="range" min="0" max="100" value="0" step="0.1" aria-label="Seek">
                     <span class="tc-label" id="tcDur">0:00</span>
                   </div>
-                  <p class="caption" id="caption"></p>
                 </div>
               </div>
             </div>
@@ -232,6 +264,7 @@ let results = [];
 let chunks = {};       // job_id -> [{start, end, text}]
 let idx = 0;
 let state = 'idle';    // idle | searching | results | nomatch | error
+let currentQuery = '';
 
 // --- timestamp formatting ---
 const fmt = s => {
@@ -240,13 +273,6 @@ const fmt = s => {
   const pad = n => String(n).padStart(2, '0');
   return h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 };
-
-// --- truncate to ~280 chars on word boundary ---
-function truncate(text, max) {
-  if (text.length <= max) return text;
-  const cut = text.lastIndexOf(' ', max);
-  return text.slice(0, cut > 0 ? cut : max) + '...';
-}
 
 // --- e-ink flash ---
 function flash(cb) {
@@ -259,6 +285,7 @@ function flash(cb) {
 
 // --- API calls ---
 async function doSearch(query) {
+  currentQuery = query;
   setState('searching');
   try {
     const res = await fetch('/api/search?q=' + encodeURIComponent(query) + '&k=5');
@@ -277,7 +304,7 @@ async function doSearch(query) {
       if (!chunks[jid]) {
         fetch('/api/chunks?job_id=' + encodeURIComponent(jid))
           .then(r => r.json())
-          .then(c => { chunks[jid] = c; updateCaption(); });
+          .then(c => { chunks[jid] = c; renderTranscript(); });
       }
     });
   } catch (e) {
@@ -319,27 +346,28 @@ function setState(s) {
 
   if (s === 'searching') {
     flash(() => {
-      $('quote').innerHTML = '';
-      $('attrib').textContent = '';
-      $('caption').textContent = '';
-      // show searching message after a brief delay
+      $('categoryTag').textContent = '';
+      $('resultTitle').innerHTML = '';
+      $('transcriptScroll').innerHTML = '';
       setTimeout(() => {
         if (state === 'searching') {
-          $('quote').innerHTML = '<span class="msg-mono">searching...</span>';
+          $('transcriptScroll').innerHTML = '<span class="msg-mono">searching...</span>';
         }
       }, 600);
     });
     stopAudio();
   } else if (s === 'nomatch') {
     flash(() => {
-      $('quote').innerHTML = '<span class="msg">Nothing in the archive matches that yet :( Try the idea, not the words.</span>';
-      $('attrib').textContent = '';
+      $('categoryTag').textContent = '';
+      $('resultTitle').innerHTML = '';
+      $('transcriptScroll').innerHTML = '<span class="msg">Nothing in the archive matches that yet :( Try the idea, not the words.</span>';
     });
     stopAudio();
   } else if (s === 'error') {
     flash(() => {
-      $('quote').innerHTML = '<span class="msg">The archive didn\'t answer. Check your connection and search again.</span>';
-      $('attrib').textContent = '';
+      $('categoryTag').textContent = '';
+      $('resultTitle').innerHTML = '';
+      $('transcriptScroll').innerHTML = '<span class="msg">The archive didn\'t answer. Check your connection and search again.</span>';
     });
     stopAudio();
   } else if (s === 'results') {
@@ -356,13 +384,12 @@ function renderResult() {
   stopAudio();
 
   flash(() => {
-    // quote with bold timestamp badge
-    const displayText = truncate(r.text, 280);
-    $('quote').innerHTML = '<span class="tc">' + fmt(r.start) + '</span> &nbsp;' +
-      displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    // attribution — hyperlink to source if available
-    const attrib = $('attrib');
-    attrib.innerHTML = '';
+    // category tag = search query
+    $('categoryTag').textContent = currentQuery;
+
+    // title — hyperlink to source if available
+    const titleEl = $('resultTitle');
+    titleEl.innerHTML = '';
     if (r.title) {
       if (r.source_url) {
         const a = document.createElement('a');
@@ -370,11 +397,14 @@ function renderResult() {
         a.target = '_blank';
         a.rel = 'noopener';
         a.textContent = r.title;
-        attrib.appendChild(a);
+        titleEl.appendChild(a);
       } else {
-        attrib.textContent = r.title;
+        titleEl.textContent = r.title;
       }
     }
+
+    // render transcript (chunks or fallback)
+    renderTranscript();
 
     // player setup
     $('playerBar').classList.add('show');
@@ -382,8 +412,6 @@ function renderResult() {
     $('scrub').max = 100;
     $('tcNow').textContent = fmt(r.start);
     $('tcDur').textContent = '...';
-    $('caption').textContent = '';
-    updateCaption();
 
     // pips + counter
     $('pips').innerHTML = results.map((_, i) =>
@@ -406,13 +434,78 @@ function renderResult() {
   });
 }
 
+// --- render unified scrollable transcript ---
+function renderTranscript() {
+  const r = results[idx];
+  if (!r) return;
+  const container = $('transcriptScroll');
+  const jobChunks = chunks[r.job_id];
+
+  if (!jobChunks || !jobChunks.length) {
+    // fallback: show matched chunk text
+    container.innerHTML = '<span class="chunk-span active">' +
+      r.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+    return;
+  }
+
+  // build concatenated transcript with inline timestamps
+  let html = '';
+  jobChunks.forEach((ch, i) => {
+    html += '<span class="chunk-ts" data-idx="' + i + '" title="Seek to ' + fmt(ch.start) + '">' +
+      fmt(ch.start) + '</span>' +
+      '<span class="chunk-span" data-idx="' + i + '">' +
+      ch.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+      '</span> ';
+  });
+  container.innerHTML = html;
+
+  // click-to-seek on timestamps and chunk spans
+  container.querySelectorAll('.chunk-ts, .chunk-span').forEach(el => {
+    el.addEventListener('click', () => {
+      const ci = parseInt(el.dataset.idx);
+      const ch = jobChunks[ci];
+      if (ch && audio.readyState >= 1) {
+        audio.currentTime = ch.start;
+        if (audio.paused) audio.play().catch(() => {});
+      }
+    });
+  });
+
+  // highlight the active chunk
+  highlightActiveChunk();
+}
+
+// --- highlight the chunk that matches current playback time ---
+function highlightActiveChunk() {
+  const r = results[idx];
+  if (!r) return;
+  const jobChunks = chunks[r.job_id];
+  if (!jobChunks) return;
+
+  const t = audio.currentTime || r.start;
+  const container = $('transcriptScroll');
+  const spans = container.querySelectorAll('.chunk-span');
+
+  spans.forEach((span, i) => {
+    const ch = jobChunks[i];
+    if (ch && t >= ch.start && t < ch.end) {
+      span.classList.add('active');
+      // auto-scroll to active chunk
+      if (span.offsetTop < container.scrollTop || span.offsetTop > container.scrollTop + container.clientHeight - 40) {
+        span.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    } else {
+      span.classList.remove('active');
+    }
+  });
+}
+
 // --- audio playback ---
 function playAudio() {
   const r = results[idx];
   if (!audio.src) return;
 
   if (audio.paused) {
-    // seek to result start if we haven't started playing this result yet
     if (audio.readyState >= 1) {
       if (Math.abs(audio.currentTime - r.start) > 1 && audio.currentTime < 1) {
         audio.currentTime = r.start;
@@ -453,7 +546,7 @@ audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   $('scrub').value = audio.currentTime;
   $('tcNow').textContent = fmt(audio.currentTime);
-  updateCaption();
+  highlightActiveChunk();
 });
 
 audio.addEventListener('play', () => {
@@ -471,31 +564,11 @@ audio.addEventListener('ended', () => {
   $('playBtn').setAttribute('aria-label', 'Play');
 });
 
-// --- Tier A caption: swap text at chunk boundaries ---
-function updateCaption() {
-  const r = results[idx];
-  if (!r) return;
-  const jobChunks = chunks[r.job_id];
-  if (!jobChunks || !jobChunks.length) {
-    // fallback: show the matched chunk text
-    $('caption').textContent = r.text;
-    return;
-  }
-  const t = audio.currentTime || r.start;
-  const ch = jobChunks.find(c => t >= c.start && t < c.end);
-  if (ch) {
-    $('caption').textContent = ch.text;
-  } else {
-    $('caption').textContent = r.text;
-  }
-}
-
 // --- navigation ---
 function go(delta) {
   const ni = Math.min(Math.max(idx + delta, 0), results.length - 1);
   if (ni !== idx) {
     idx = ni;
-    // reset audio if different job
     const r = results[idx];
     if (r.job_id !== currentJobId) {
       currentJobId = r.job_id;
@@ -533,7 +606,7 @@ $('playBtn').addEventListener('click', playAudio);
 $('scrub').addEventListener('input', e => {
   audio.currentTime = +e.target.value;
   $('tcNow').textContent = fmt(audio.currentTime);
-  updateCaption();
+  highlightActiveChunk();
 });
 
 $('next').addEventListener('click', () => go(1));
