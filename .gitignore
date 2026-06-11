@@ -10,7 +10,7 @@ CLAUDE.md
 .gitignore
 *.tfvars
 sample_audio/youtube/*
-
+sample_audio/*
 eval.py
 docker-compose.yml
 tyle2.pem
