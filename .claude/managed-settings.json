@@ -6,7 +6,8 @@
       "Read(./.env.*)",
       "Read(./secrets/**)",
       "Read(./tyle2.pem",
-      "Read(./.pem"
+      "Read(./.pem",
+      "Read(./docs/_commands_prod.md"
     ],
     "disableBypassPermissionsMode": "disable"
   },

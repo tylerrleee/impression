@@ -330,7 +330,7 @@ function setState(s) {
     stopAudio();
   } else if (s === 'nomatch') {
     flash(() => {
-      $('quote').innerHTML = '<span class="msg">Nothing in the archive matches that &mdash; yet. Try the idea, not the words.</span>';
+      $('quote').innerHTML = '<span class="msg">Nothing in the archive matches that yet :( Try the idea, not the words.</span>';
       $('attrib').textContent = '';
     });
     stopAudio();

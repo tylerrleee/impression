@@ -6,18 +6,16 @@ import yt_dlp
 
 DOWNLOAD_FOLDER = "./sample_audio/youtube"
 VIDEO_TO_DOWNLOAD_LIST = [
-"https://www.youtube.com/watch?v=D_1j5dVWNYI",
-"https://www.youtube.com/watch?v=9C7PlREtG6Q&pp=ugUEEgJlbg%3D%3D",
-"https://www.youtube.com/watch?v=kS-CGkiPetQ",
-"https://www.youtube.com/watch?v=z0X2fTYUIgA&pp=ygUJYW50aHJvcGlj",
-"https://www.youtube.com/watch?v=jGEK30dFvIA&pp=ugUEEgJlbtIHCQk5CwGHKiGM7w%3D%3D",
-"https://www.youtube.com/watch?v=l0h3nAW13ao&pp=ugUHEgVlbi1VUw%3D%3D",
-"https://www.youtube.com/watch?v=VvolrweMSTY&pp=0gcJCTkLAYcqIYzv",
-"https://www.youtube.com/watch?v=-T39cM3LPk0&pp=ugUEEgJlbg%3D%3D",
-"https://www.youtube.com/watch?v=Y9Wz2PV404E",
-"https://www.youtube.com/watch?v=U93EPbwyrUA"
+"https://www.youtube.com/watch?v=RwlgFC6S-OE&pp=ygUHcG9kY2FzdA%3D%3D",
+"https://www.youtube.com/watch?v=1fkvR_MCRbo&pp=ygUbYnRzIG9uIGNyZWF0aW5nIHRoZWlyIGFsYnVt",
+"https://www.youtube.com/watch?v=OBtnKCG3QAE&pp=ygUNY2FzZXkgbmVpc3RhdNIHCQk5CwGHKiGM7w%3D%3D",
+"https://www.youtube.com/watch?v=EUIxP4Iseok&pp=ygUNY2FzZXkgbmVpc3RhdA%3D%3D",
+"https://www.youtube.com/watch?v=NUSXmWh_O5E&pp=ygULZWxsaW90IGNob3k%3D",
+"https://www.youtube.com/watch?v=f_Rqf-vxBM8",
+"https://www.youtube.com/watch?v=y1F9YAT6TLs",
+"https://www.youtube.com/watch?v=v1ZQZGejMu8",
+"https://www.youtube.com/watch?v=QYAnJ_QyCQg&pp=ugUEEgJlbg%3D%3D"
 ]
-
 def run(video_url):
     # Ensure the configured download directory actually exists
     if not os.path.exists(DOWNLOAD_FOLDER):
