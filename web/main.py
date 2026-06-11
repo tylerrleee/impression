@@ -39,6 +39,11 @@ def search(q: str, k: int = 5):
              "end": round(r[2], 1), "text": r[3],
              "title": r[4]} for r in rows]
 
+@app.get("/api/chunks")
+def chunks(job_id: str):
+    rows = db.get_chunks(job_id)
+    return [{"start": round(r[0], 1), "end": round(r[1], 1), "text": r[2]} for r in rows]
+
 @app.get("/api/audio_url")
 def audio_url(job_id: str):
     key = db.get_s3_key(job_id)

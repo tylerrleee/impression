@@ -29,6 +29,14 @@ def create_job( job_id: str, s3_key: str, title: str | None = None) -> None:
             , (job_id, s3_key, title)
         )
 
+def get_chunks(job_id: str):
+    with psycopg.connect(DSN) as c, c.cursor() as cur:
+        cur.execute(
+            "SELECT start_sec, end_sec, text FROM chunks "
+            "WHERE job_id = %s ORDER BY start_sec",
+            (job_id,))
+        return cur.fetchall()
+
 def get_job(job_id: str) -> dict | None:
     with psycopg.connect(DSN) as c, c.cursor() as cur:
         cur.execute("SELECT status, progress, transcript " \

@@ -1,33 +1,535 @@
-
-<!doctype html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
-<title>Impression — search the archive</title>
-<input id="q" placeholder="search the archive">
-<button onclick="search()">search</button>
-<div id="results"></div>
-<audio id="player" controls style="width:100%;margin-top:8px"></audio>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impression</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --wood-hi:#C99A63; --wood-mid:#AE7C46; --wood-lo:#84592F;
+    --bezel:#1A1715;
+    --screen:#D9D6CF; --screen-sheen:#E1DED7;
+    --ink:#2B2A27; --ink-bold:#1C1B19; --ink-soft:#57554F;
+    --brass-hi:#E8C879; --brass-mid:#C9A24A; --brass-lo:#8C6B27;
+    --backdrop:#EFEBE3; --engrave:#4A4843;
+    --serif:"Newsreader",Georgia,"Times New Roman",serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% 18%, #F6F2EA 0%, var(--backdrop) 55%, #E4DECF 100%);
+    color:var(--ink); font-family:var(--serif);
+    min-height:100%; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:22px; padding:40px 16px;
+  }
+
+  /* ---------- device ---------- */
+  .stage{display:flex; flex-direction:column; align-items:center; gap:18px; width:100%; max-width:860px}
+  .device{position:relative; width:min(760px,100%)}
+  .frame{
+    position:relative; border-radius:28px; padding:26px;
+    background:
+      repeating-linear-gradient(91deg, rgba(0,0,0,.04) 0 2px, rgba(255,255,255,.025) 2px 5px),
+      linear-gradient(135deg, var(--wood-hi) 0%, var(--wood-mid) 46%, var(--wood-lo) 100%);
+    box-shadow:
+      inset 0 2px 0 rgba(255,255,255,.25),
+      inset 0 -3px 8px rgba(0,0,0,.30),
+      0 24px 48px -16px rgba(60,40,20,.35);
+  }
+  .bezel{
+    background:var(--bezel); border-radius:20px; padding:22px 22px 38px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 30px rgba(0,0,0,.6);
+  }
+  .screen{
+    position:relative; border-radius:10px; padding:30px 34px 16px;
+    min-height:330px; display:flex; flex-direction:column;
+    background:linear-gradient(180deg, var(--screen-sheen) 0%, var(--screen) 60%);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.18), inset 0 0 0 1px rgba(0,0,0,.05);
+    overflow:hidden;
+  }
+  /* e-ink refresh flash */
+  .screen.flash::after{
+    content:""; position:absolute; inset:0; background:#26221E;
+    animation:eink 170ms ease forwards; pointer-events:none; border-radius:10px;
+  }
+  @keyframes eink{0%{opacity:0}35%{opacity:.92}100%{opacity:0}}
+
+  /* engraved label */
+  .label{
+    position:absolute; left:0; right:0; bottom:12px; text-align:center;
+    font-size:13px; font-weight:600; letter-spacing:.18em; color:var(--engrave);
+    text-shadow:0 -1px 0 rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.06);
+  }
+
+  /* brass knob */
+  .knob{
+    position:absolute; right:-15px; top:50%; transform:translateY(-50%);
+    width:30px; height:74px; border:0; padding:0; cursor:pointer;
+    border-radius:5px;
+    background:
+      repeating-linear-gradient(90deg, var(--brass-lo) 0 2px, var(--brass-hi) 2px 4px),
+      linear-gradient(90deg, var(--brass-lo), var(--brass-mid) 45%, var(--brass-hi) 60%, var(--brass-mid));
+    box-shadow:0 4px 8px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.2);
+    transition:transform .2s cubic-bezier(.3,1.6,.5,1);
+  }
+  .knob:hover{filter:brightness(1.05)}
+  .knob:active{transform:translateY(-50%) rotate(11deg)}
+  .knob:focus-visible{outline:3px solid var(--brass-hi); outline-offset:3px}
+  .knob:disabled{opacity:.5; cursor:not-allowed}
+
+  /* ---------- screen content ---------- */
+  .topbar{display:none; margin-bottom:14px}
+  .topbar.show{display:block}
+  .search-top{
+    width:100%; border:0; background:transparent; border-bottom:1px solid rgba(0,0,0,.18);
+    font-family:var(--serif); font-size:17px; color:var(--ink); padding:4px 2px;
+  }
+  .search-top:focus{outline:none; border-bottom-color:var(--ink)}
+
+  .body{flex:1; display:flex; flex-direction:column; justify-content:center}
+
+  /* idle search */
+  .idle{display:flex; flex-direction:column; gap:4px}
+  .idle input{
+    border:0; background:transparent; font-family:var(--serif);
+    font-size:26px; color:var(--ink); width:100%; padding:0;
+  }
+  .idle input::placeholder{color:var(--ink-soft); opacity:1}
+  .idle input:focus{outline:none}
+  .idle .hint{font-size:13px; color:var(--ink-soft); font-family:var(--mono)}
+
+  /* result quote */
+  .quote{font-size:30px; line-height:1.4; color:var(--ink)}
+  .quote .tc{font-weight:700; color:var(--ink-bold)}
+  .attrib{margin-top:18px; text-align:right; font-size:20px; font-style:italic; color:var(--ink-soft); line-height:1.3}
+
+  /* message states (no match, error, searching) */
+  .msg{font-size:22px; line-height:1.5; color:var(--ink-soft)}
+  .msg-mono{font-family:var(--mono); font-size:14px; color:var(--ink-soft)}
+
+  /* player */
+  .player{margin-top:auto; padding-top:14px; display:none}
+  .player.show{display:block}
+  .player .rule{height:1px; background:rgba(0,0,0,.14); margin:0 0 12px}
+  .controls{display:flex; align-items:center; gap:14px}
+  .play{
+    width:34px; height:34px; flex:0 0 auto; border:0; cursor:pointer; border-radius:6px;
+    background:rgba(0,0,0,.06); color:var(--ink); font-size:13px; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .play:hover{background:rgba(0,0,0,.12)}
+  .play:focus-visible{outline:3px solid var(--brass-mid); outline-offset:2px}
+  .tc-label{font-family:var(--mono); font-size:14px; color:var(--ink); font-variant-numeric:tabular-nums}
+  .scrub{flex:1; -webkit-appearance:none; appearance:none; height:18px; background:transparent; cursor:pointer}
+  .scrub::-webkit-slider-runnable-track{height:2px; background:rgba(0,0,0,.22)}
+  .scrub::-moz-range-track{height:2px; background:rgba(0,0,0,.22)}
+  .scrub::-webkit-slider-thumb{-webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--brass-mid); margin-top:-5px; box-shadow:0 1px 2px rgba(0,0,0,.4)}
+  .scrub::-moz-range-thumb{width:12px; height:12px; border:0; border-radius:50%; background:var(--brass-mid)}
+  .scrub:focus-visible{outline:3px solid var(--brass-mid); outline-offset:4px; border-radius:4px}
+  .caption{margin-top:10px; font-size:15px; line-height:1.45; color:var(--ink-soft); min-height:1.45em}
+
+  /* hidden until search */
+  .result-view{display:none}
+  .result-view.show{display:flex; flex-direction:column; height:100%}
+
+  /* ---------- pips ---------- */
+  .nav{display:flex; align-items:center; gap:14px; font-family:var(--mono); font-size:12px; color:var(--ink-soft); min-height:24px}
+  .nav.hide{visibility:hidden}
+  .nav button{border:0; background:transparent; cursor:pointer; color:var(--ink); font-size:15px; padding:6px; line-height:1; min-width:32px; min-height:32px}
+  .nav button:disabled{opacity:.35; cursor:not-allowed}
+  .nav button:focus-visible{outline:2px solid var(--brass-mid); outline-offset:1px; border-radius:4px}
+  .pips{display:flex; gap:7px}
+  .pip{width:7px; height:7px; border-radius:50%; background:rgba(0,0,0,.22)}
+  .pip.on{background:var(--ink)}
+
+  .footer{font-family:var(--mono); font-size:11px; color:var(--ink-soft); opacity:.8}
+  .footer a{color:inherit}
+
+  @media (max-width:600px){
+    .quote{font-size:22px} .idle input{font-size:22px} .attrib{font-size:17px}
+    .screen{min-height:300px; padding:24px 22px 14px}
+    .knob{right:-12px; width:24px; height:60px}
+    .nav button{min-width:44px; min-height:44px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .screen.flash::after{animation-duration:80ms}
+    .knob{transition:none} .knob:active{transform:translateY(-50%)}
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="device">
+      <div class="frame">
+        <div class="bezel">
+          <div class="screen" id="screen">
+            <!-- compact search (after a query) -->
+            <div class="topbar" id="topbar">
+              <input class="search-top" id="searchTop" placeholder="Ask the archive..." aria-label="Search the archive">
+            </div>
+
+            <div class="body">
+              <!-- IDLE -->
+              <div class="idle" id="idle">
+                <input id="searchIdle" placeholder="Ask the archive..." aria-label="Search the archive">
+                <span class="hint">type an idea, not keywords</span>
+              </div>
+
+              <!-- RESULT -->
+              <div class="result-view" id="resultView">
+                <div>
+                  <p class="quote" id="quote"></p>
+                  <p class="attrib" id="attrib"></p>
+                </div>
+                <div class="player" id="playerBar">
+                  <div class="rule"></div>
+                  <div class="controls">
+                    <button class="play" id="playBtn" aria-label="Play">&#9654;</button>
+                    <span class="tc-label" id="tcNow">0:00</span>
+                    <input class="scrub" id="scrub" type="range" min="0" max="100" value="0" step="0.1" aria-label="Seek">
+                    <span class="tc-label" id="tcDur">0:00</span>
+                  </div>
+                  <p class="caption" id="caption"></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="label">IMPRESSION</div>
+          </div>
+        </div>
+        <button class="knob" id="knob" aria-label="Next result" title="Wind to next result"></button>
+      </div>
+    </div>
+
+    <!-- accessible mirror of the knob -->
+    <div class="nav hide" id="nav">
+      <button id="prev" aria-label="Previous result">&#9664;</button>
+      <span class="pips" id="pips"></span>
+      <button id="next" aria-label="Next result">&#9654;</button>
+      <span id="counter"></span>
+    </div>
+
+    <div class="footer">impression</div>
+  </div>
+
+  <audio id="audio" preload="none"></audio>
+
 <script>
-async function search() {
-  const q = document.getElementById('q').value;
-  const r = await fetch('/api/search?q=' + encodeURIComponent(q));
-  const rows = await r.json();
-  const box = document.getElementById('results');
-  box.innerHTML = '';
-  rows.forEach(x => {
-    const div = document.createElement('div');
-    div.style.margin = '6px 0';
-    const btn = document.createElement('button');
-    btn.textContent = '▶ ' + x.start + 's';
-    btn.onclick = () => play(x.job_id, x.start);
-    div.append(btn, ' ' + x.text);
-    box.appendChild(div);
+const $ = id => document.getElementById(id);
+const audio = $('audio');
+const screen_ = $('screen');
+
+let results = [];
+let chunks = {};       // job_id -> [{start, end, text}]
+let idx = 0;
+let state = 'idle';    // idle | searching | results | nomatch | error
+
+// --- timestamp formatting ---
+const fmt = s => {
+  s = Math.floor(s);
+  const h = (s / 3600) | 0, m = ((s % 3600) / 60) | 0, sec = s % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+};
+
+// --- truncate to ~280 chars on word boundary ---
+function truncate(text, max) {
+  if (text.length <= max) return text;
+  const cut = text.lastIndexOf(' ', max);
+  return text.slice(0, cut > 0 ? cut : max) + '...';
+}
+
+// --- e-ink flash ---
+function flash(cb) {
+  const reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
+  screen_.classList.remove('flash');
+  void screen_.offsetWidth;
+  screen_.classList.add('flash');
+  setTimeout(cb, reduce ? 40 : 90);
+}
+
+// --- API calls ---
+async function doSearch(query) {
+  setState('searching');
+  try {
+    const res = await fetch('/api/search?q=' + encodeURIComponent(query) + '&k=5');
+    if (!res.ok) throw new Error(res.statusText);
+    const rows = await res.json();
+    if (!rows.length) {
+      setState('nomatch');
+      return;
+    }
+    results = rows;
+    idx = 0;
+    setState('results');
+    // prefetch chunks for all unique job_ids
+    const jobIds = [...new Set(rows.map(r => r.job_id))];
+    jobIds.forEach(jid => {
+      if (!chunks[jid]) {
+        fetch('/api/chunks?job_id=' + encodeURIComponent(jid))
+          .then(r => r.json())
+          .then(c => { chunks[jid] = c; updateCaption(); });
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    setState('error');
+  }
+}
+
+async function loadAudio(jobId) {
+  try {
+    const res = await fetch('/api/audio_url?job_id=' + encodeURIComponent(jobId));
+    if (!res.ok) throw new Error(res.statusText);
+    const { url } = await res.json();
+    return url;
+  } catch (e) {
+    console.error('Failed to load audio URL:', e);
+    return null;
+  }
+}
+
+// --- state machine ---
+function setState(s) {
+  state = s;
+  $('idle').style.display = 'none';
+  $('resultView').classList.remove('show');
+  $('topbar').classList.remove('show');
+  $('nav').classList.add('hide');
+  $('playerBar').classList.remove('show');
+
+  if (s === 'idle') {
+    $('idle').style.display = 'flex';
+    stopAudio();
+    return;
+  }
+
+  // all non-idle states show the top search bar
+  $('topbar').classList.add('show');
+  $('resultView').classList.add('show');
+
+  if (s === 'searching') {
+    flash(() => {
+      $('quote').innerHTML = '';
+      $('attrib').textContent = '';
+      $('caption').textContent = '';
+      // show searching message after a brief delay
+      setTimeout(() => {
+        if (state === 'searching') {
+          $('quote').innerHTML = '<span class="msg-mono">searching...</span>';
+        }
+      }, 600);
+    });
+    stopAudio();
+  } else if (s === 'nomatch') {
+    flash(() => {
+      $('quote').innerHTML = '<span class="msg">Nothing in the archive matches that &mdash; yet. Try the idea, not the words.</span>';
+      $('attrib').textContent = '';
+    });
+    stopAudio();
+  } else if (s === 'error') {
+    flash(() => {
+      $('quote').innerHTML = '<span class="msg">The archive didn\'t answer. Check your connection and search again.</span>';
+      $('attrib').textContent = '';
+    });
+    stopAudio();
+  } else if (s === 'results') {
+    $('nav').classList.remove('hide');
+    renderResult();
+  }
+}
+
+// --- render current result ---
+let currentJobId = null;
+
+function renderResult() {
+  const r = results[idx];
+  stopAudio();
+
+  flash(() => {
+    // quote with bold timestamp badge
+    const displayText = truncate(r.text, 280);
+    $('quote').innerHTML = '<span class="tc">' + fmt(r.start) + '</span> &nbsp;' +
+      displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // attribution
+    $('attrib').textContent = r.title || '';
+
+    // player setup
+    $('playerBar').classList.add('show');
+    $('scrub').value = 0;
+    $('scrub').max = 100;
+    $('tcNow').textContent = fmt(r.start);
+    $('tcDur').textContent = '...';
+    $('caption').textContent = '';
+    updateCaption();
+
+    // pips + counter
+    $('pips').innerHTML = results.map((_, i) =>
+      '<span class="pip ' + (i === idx ? 'on' : '') + '"></span>'
+    ).join('');
+    $('counter').textContent = 'result ' + (idx + 1) + ' of ' + results.length;
+    $('prev').disabled = idx === 0;
+    $('next').disabled = idx === results.length - 1;
+    $('knob').disabled = idx === results.length - 1;
+
+    // load audio if job changed
+    if (r.job_id !== currentJobId) {
+      currentJobId = r.job_id;
+      loadAudio(r.job_id).then(url => {
+        if (!url) return;
+        audio.src = url;
+        audio.load();
+      });
+    }
   });
 }
-async function play(jobId, startSec) {
-  const player = document.getElementById('player');
-  const { url } = await (await fetch('/api/audio_url?job_id=' + jobId)).json();
-  player.src = url;
-  player.addEventListener('loadedmetadata', () => { player.currentTime = startSec; }, { once: true });
-  player.play().catch(err => console.warn('autoplay blocked, press play:', err));
+
+// --- audio playback ---
+function playAudio() {
+  const r = results[idx];
+  if (!audio.src) return;
+
+  if (audio.paused) {
+    // seek to result start if we haven't started playing this result yet
+    if (audio.readyState >= 1) {
+      if (Math.abs(audio.currentTime - r.start) > 1 && audio.currentTime < 1) {
+        audio.currentTime = r.start;
+      }
+      audio.play().catch(() => {});
+    } else {
+      audio.addEventListener('loadedmetadata', () => {
+        audio.currentTime = r.start;
+        audio.play().catch(() => {});
+      }, { once: true });
+    }
+  } else {
+    audio.pause();
+  }
 }
+
+function stopAudio() {
+  audio.pause();
+  audio.removeAttribute('src');
+  audio.load();
+  $('playBtn').textContent = '\u25B6';
+  $('playBtn').setAttribute('aria-label', 'Play');
+}
+
+// audio events
+audio.addEventListener('loadedmetadata', () => {
+  const r = results[idx];
+  if (r) {
+    $('tcDur').textContent = fmt(audio.duration);
+    $('scrub').max = audio.duration;
+    $('scrub').value = r.start;
+    $('tcNow').textContent = fmt(r.start);
+    audio.currentTime = r.start;
+  }
+});
+
+audio.addEventListener('timeupdate', () => {
+  if (!audio.duration) return;
+  $('scrub').value = audio.currentTime;
+  $('tcNow').textContent = fmt(audio.currentTime);
+  updateCaption();
+});
+
+audio.addEventListener('play', () => {
+  $('playBtn').innerHTML = '&#10074;&#10074;';
+  $('playBtn').setAttribute('aria-label', 'Pause');
+});
+
+audio.addEventListener('pause', () => {
+  $('playBtn').textContent = '\u25B6';
+  $('playBtn').setAttribute('aria-label', 'Play');
+});
+
+audio.addEventListener('ended', () => {
+  $('playBtn').textContent = '\u25B6';
+  $('playBtn').setAttribute('aria-label', 'Play');
+});
+
+// --- Tier A caption: swap text at chunk boundaries ---
+function updateCaption() {
+  const r = results[idx];
+  if (!r) return;
+  const jobChunks = chunks[r.job_id];
+  if (!jobChunks || !jobChunks.length) {
+    // fallback: show the matched chunk text
+    $('caption').textContent = r.text;
+    return;
+  }
+  const t = audio.currentTime || r.start;
+  const ch = jobChunks.find(c => t >= c.start && t < c.end);
+  if (ch) {
+    $('caption').textContent = ch.text;
+  } else {
+    $('caption').textContent = r.text;
+  }
+}
+
+// --- navigation ---
+function go(delta) {
+  const ni = Math.min(Math.max(idx + delta, 0), results.length - 1);
+  if (ni !== idx) {
+    idx = ni;
+    // reset audio if different job
+    const r = results[idx];
+    if (r.job_id !== currentJobId) {
+      currentJobId = r.job_id;
+      stopAudio();
+      loadAudio(r.job_id).then(url => {
+        if (url) { audio.src = url; audio.load(); }
+      });
+    }
+    renderResult();
+  }
+}
+
+// --- search submission ---
+function submit(value) {
+  const q = value.trim();
+  if (!q) return;
+  $('searchTop').value = q;
+  doSearch(q);
+}
+
+// --- events ---
+$('searchIdle').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submit(e.target.value);
+});
+
+$('searchTop').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    idx = 0;
+    submit(e.target.value);
+  }
+});
+
+$('playBtn').addEventListener('click', playAudio);
+
+$('scrub').addEventListener('input', e => {
+  audio.currentTime = +e.target.value;
+  $('tcNow').textContent = fmt(audio.currentTime);
+  updateCaption();
+});
+
+$('next').addEventListener('click', () => go(1));
+$('prev').addEventListener('click', () => go(-1));
+$('knob').addEventListener('click', () => go(1));
+
+document.addEventListener('keydown', e => {
+  if (state !== 'results') return;
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight') go(1);
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === ' ') { e.preventDefault(); playAudio(); }
+});
 </script>
+</body>
+</html>
