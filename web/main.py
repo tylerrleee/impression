@@ -37,7 +37,8 @@ def search(q: str, k: int = 5):
     rows = db.search_chunks(vec, k)
     return [{"job_id": r[0], "start": round(r[1], 1),
              "end": round(r[2], 1), "text": r[3],
-             "title": r[4], "source_url": r[5]} for r in rows]
+             "title": r[4], "source_url": r[5],
+             "score": round(r[6], 4)} for r in rows]
 
 @app.get("/api/chunks")
 def chunks(job_id: str):

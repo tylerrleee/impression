@@ -15,10 +15,11 @@ def search_chunks(vec, k = 5):
         register_vector(conn)
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT c.job_id, c.start_sec, c.end_sec, c.text, j.title, j.source_url "
+                "SELECT c.job_id, c.start_sec, c.end_sec, c.text, j.title, j.source_url, "
+                "1 - (c.embedding <=> %s) AS score "
                 "FROM chunks c JOIN jobs j ON j.id = c.job_id "
                 "ORDER BY c.embedding <=> %s LIMIT %s",
-                (vec, k))
+                (vec, vec, k))
             return cur.fetchall()
         
 def create_job( job_id: str, s3_key: str, title: str | None = None, source_url: str | None = None) -> None:
