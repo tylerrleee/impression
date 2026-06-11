@@ -29,15 +29,22 @@ def window_segments(segments, target_sec = 45):
             start = seg["start"]
         cur.append(seg)
         if seg["end"] - start >= target_sec:
+            words = []
+            for s in cur:
+                words.extend(s.get("words", []))
             chunks.append({"start" : start,
                            "end" : seg["end"],
-                           "text" : " ".join(s["text"] for s in cur).strip()}
-                           )
+                           "text" : " ".join(s["text"] for s in cur).strip(),
+                           "words": words})
             cur = []
     if cur:
+        words = []
+        for s in cur:
+            words.extend(s.get("words", []))
         chunks.append({"start" : start,
                        "end" : cur[-1]["end"],
-                       "text" : " ".join(s["text"] for s in cur).strip()})
+                       "text" : " ".join(s["text"] for s in cur).strip(),
+                       "words": words})
     return chunks
 
 def set_status(job_id, status, progress, transcript=None):
@@ -61,9 +68,9 @@ def save_result(job_id, transcript, segments):
             cur.execute("DELETE FROM chunks WHERE job_id=%s", (job_id,))
             for c, v in zip(chunks, vectors):
                 cur.execute(
-                    "INSERT INTO chunks (job_id, start_sec, end_sec, text, embedding) " \
-                    "VALUES (%s, %s, %s, %s, %s)",
-                    (job_id, c["start"], c["end"], c["text"], v)
+                    "INSERT INTO chunks (job_id, start_sec, end_sec, text, embedding, words) " \
+                    "VALUES (%s, %s, %s, %s, %s, %s)",
+                    (job_id, c["start"], c["end"], c["text"], v, json.dumps(c.get("words", [])))
                 )
             cur.execute(
                 "UPDATE jobs SET status='done' , progress = 100," \
@@ -90,13 +97,20 @@ def handle(job_id, s3_key):
     os.close(fd)
     try:
         s3.download_file(S3_BUCKET, s3_key, path)
-        seg_iter, info = model.transcribe(path, beam_size = 1)
+        seg_iter, info = model.transcribe(path, beam_size = 1, word_timestamps = True)
         total = info.duration or 0
         segments, last_pct = [], -1
         for seg in seg_iter:
+            seg_words = []
+            if seg.words:
+                for w in seg.words:
+                    seg_words.append({"start": round(w.start, 2),
+                                      "end": round(w.end, 2),
+                                      "word": w.word.strip()})
             segments.append({"start": round(seg.start, 2),
                              "end" : round(seg.end, 2),
-                             "text": seg.text.strip()}
+                             "text": seg.text.strip(),
+                             "words": seg_words}
                              )
             pct = min(99, int(seg.end / total * 100)) if total else 0
             if pct != last_pct:

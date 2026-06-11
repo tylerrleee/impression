@@ -127,14 +127,19 @@
   .transcript-scroll::-webkit-scrollbar{width:4px}
   .transcript-scroll::-webkit-scrollbar-track{background:transparent}
   .transcript-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18); border-radius:2px}
-  .chunk-span{cursor:pointer; transition:color .15s, background .15s; border-radius:2px; padding:0 1px}
-  .chunk-span:hover{background:rgba(0,0,0,.06)}
-  .chunk-span.active{color:var(--ink-bold); font-weight:600}
+  .chunk-block{margin-bottom:4px}
   .chunk-ts{
     font-family:var(--mono); font-size:12px; font-weight:700;
-    color:var(--brass-mid); margin-right:2px; cursor:pointer;
+    color:var(--brass-mid); margin-right:4px; cursor:pointer;
   }
   .chunk-ts:hover{text-decoration:underline}
+  .word{
+    cursor:pointer; transition:color .12s, background-color .12s;
+    border-radius:2px; padding:0 1px;
+  }
+  .word:hover{background:rgba(0,0,0,.06)}
+  .word.active{color:var(--ink-bold); font-weight:700; background:rgba(0,0,0,.06)}
+  .word.spoken{color:var(--ink); font-weight:500}
 
   /* message states */
   .msg{font-size:22px; line-height:1.5; color:var(--ink-soft)}
@@ -434,7 +439,7 @@ function renderResult() {
   });
 }
 
-// --- render unified scrollable transcript ---
+// --- render unified scrollable transcript with word-level spans ---
 function renderTranscript() {
   const r = results[idx];
   if (!r) return;
@@ -442,62 +447,93 @@ function renderTranscript() {
   const jobChunks = chunks[r.job_id];
 
   if (!jobChunks || !jobChunks.length) {
-    // fallback: show matched chunk text
-    container.innerHTML = '<span class="chunk-span active">' +
+    container.innerHTML = '<span class="word active">' +
       r.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
     return;
   }
 
-  // build concatenated transcript with inline timestamps
   let html = '';
-  jobChunks.forEach((ch, i) => {
-    html += '<span class="chunk-ts" data-idx="' + i + '" title="Seek to ' + fmt(ch.start) + '">' +
-      fmt(ch.start) + '</span>' +
-      '<span class="chunk-span" data-idx="' + i + '">' +
-      ch.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') +
-      '</span> ';
+  jobChunks.forEach((ch, ci) => {
+    html += '<span class="chunk-block">';
+    html += '<span class="chunk-ts" data-chunk="' + ci + '" title="Seek to ' + fmt(ch.start) + '">' +
+      fmt(ch.start) + '</span>';
+
+    if (ch.words && ch.words.length) {
+      ch.words.forEach((w, wi) => {
+        const esc = w.word.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        html += '<span class="word" data-chunk="' + ci + '" data-word="' + wi +
+          '" data-start="' + w.start + '" data-end="' + w.end + '">' + esc + '</span> ';
+      });
+    } else {
+      // fallback: chunk text as single span (no word timing data)
+      html += '<span class="word" data-chunk="' + ci +
+        '" data-start="' + ch.start + '" data-end="' + ch.end + '">' +
+        ch.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+    }
+
+    html += '</span> ';
   });
   container.innerHTML = html;
 
-  // click-to-seek on timestamps and chunk spans
-  container.querySelectorAll('.chunk-ts, .chunk-span').forEach(el => {
-    el.addEventListener('click', () => {
-      const ci = parseInt(el.dataset.idx);
-      const ch = jobChunks[ci];
-      if (ch && audio.readyState >= 1) {
-        audio.currentTime = ch.start;
-        if (audio.paused) audio.play().catch(() => {});
-      }
-    });
-  });
-
-  // highlight the active chunk
-  highlightActiveChunk();
+  // click-to-seek on any word or timestamp (delegate, remove old first)
+  container.removeEventListener('click', onTranscriptClick);
+  container.addEventListener('click', onTranscriptClick);
+  highlightWords();
 }
 
-// --- highlight the chunk that matches current playback time ---
-function highlightActiveChunk() {
+function onTranscriptClick(e) {
+  const el = e.target;
+  if (audio.readyState < 1) return;
+
+  if (el.classList.contains('chunk-ts')) {
+    const ci = parseInt(el.dataset.chunk);
+    const jobChunks = chunks[results[idx].job_id];
+    if (jobChunks && jobChunks[ci]) {
+      audio.currentTime = jobChunks[ci].start;
+      if (audio.paused) audio.play().catch(() => {});
+    }
+  } else if (el.classList.contains('word') && el.dataset.start) {
+    audio.currentTime = parseFloat(el.dataset.start);
+    if (audio.paused) audio.play().catch(() => {});
+  }
+}
+
+// --- word-level highlight synced to playback ---
+let lastHighlighted = null;
+
+function highlightWords() {
   const r = results[idx];
   if (!r) return;
-  const jobChunks = chunks[r.job_id];
-  if (!jobChunks) return;
-
-  const t = audio.currentTime || r.start;
   const container = $('transcriptScroll');
-  const spans = container.querySelectorAll('.chunk-span');
+  const t = audio.currentTime || r.start;
+  const words = container.querySelectorAll('.word');
 
-  spans.forEach((span, i) => {
-    const ch = jobChunks[i];
-    if (ch && t >= ch.start && t < ch.end) {
-      span.classList.add('active');
-      // auto-scroll to active chunk
-      if (span.offsetTop < container.scrollTop || span.offsetTop > container.scrollTop + container.clientHeight - 40) {
-        span.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
+  let activeEl = null;
+  words.forEach(w => {
+    const ws = parseFloat(w.dataset.start);
+    const we = parseFloat(w.dataset.end);
+
+    if (t >= ws && t < we) {
+      w.classList.add('active');
+      w.classList.add('spoken');
+      activeEl = w;
+    } else if (t >= we) {
+      w.classList.remove('active');
+      w.classList.add('spoken');
     } else {
-      span.classList.remove('active');
+      w.classList.remove('active');
+      w.classList.remove('spoken');
     }
   });
+
+  // auto-scroll to the active word
+  if (activeEl && activeEl !== lastHighlighted) {
+    lastHighlighted = activeEl;
+    const top = activeEl.offsetTop;
+    if (top < container.scrollTop || top > container.scrollTop + container.clientHeight - 40) {
+      activeEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }
 }
 
 // --- audio playback ---
@@ -546,7 +582,7 @@ audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   $('scrub').value = audio.currentTime;
   $('tcNow').textContent = fmt(audio.currentTime);
-  highlightActiveChunk();
+  highlightWords();
 });
 
 audio.addEventListener('play', () => {
@@ -606,7 +642,7 @@ $('playBtn').addEventListener('click', playAudio);
 $('scrub').addEventListener('input', e => {
   audio.currentTime = +e.target.value;
   $('tcNow').textContent = fmt(audio.currentTime);
-  highlightActiveChunk();
+  highlightWords();
 });
 
 $('next').addEventListener('click', () => go(1));

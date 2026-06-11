@@ -18,5 +18,6 @@ CREATE TABLE IF NOT EXISTS chunks (
   start_sec REAL NOT NULL,
   end_sec   REAL NOT NULL,
   text      TEXT NOT NULL,
-  embedding VECTOR(384)
+  embedding VECTOR(384),
+  words     JSONB
 );
