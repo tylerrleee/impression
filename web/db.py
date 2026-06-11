@@ -15,18 +15,18 @@ def search_chunks(vec, k = 5):
         register_vector(conn)
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT c.job_id, c.start_sec, c.end_sec, c.text, j.title "
+                "SELECT c.job_id, c.start_sec, c.end_sec, c.text, j.title, j.source_url "
                 "FROM chunks c JOIN jobs j ON j.id = c.job_id "
                 "ORDER BY c.embedding <=> %s LIMIT %s",
                 (vec, k))
             return cur.fetchall()
         
-def create_job( job_id: str, s3_key: str, title: str | None = None) -> None:
+def create_job( job_id: str, s3_key: str, title: str | None = None, source_url: str | None = None) -> None:
     with psycopg.connect(DSN) as c, c.cursor() as cur:
         cur.execute(
-            "INSERT INTO jobs (id, s3_key, status, progress, title)" \
-            "VALUES (%s, %s,'queued', 0, %s)"
-            , (job_id, s3_key, title)
+            "INSERT INTO jobs (id, s3_key, status, progress, title, source_url)" \
+            "VALUES (%s, %s,'queued', 0, %s, %s)"
+            , (job_id, s3_key, title, source_url)
         )
 
 def get_chunks(job_id: str):

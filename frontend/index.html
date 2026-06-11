@@ -107,6 +107,8 @@
   .quote{font-size:30px; line-height:1.4; color:var(--ink)}
   .quote .tc{font-weight:700; color:var(--ink-bold)}
   .attrib{margin-top:18px; text-align:right; font-size:20px; font-style:italic; color:var(--ink-soft); line-height:1.3}
+  .attrib a{color:var(--ink-soft); text-decoration:underline; text-underline-offset:3px}
+  .attrib a:hover{color:var(--ink)}
 
   /* message states (no match, error, searching) */
   .msg{font-size:22px; line-height:1.5; color:var(--ink-soft)}
@@ -358,8 +360,21 @@ function renderResult() {
     const displayText = truncate(r.text, 280);
     $('quote').innerHTML = '<span class="tc">' + fmt(r.start) + '</span> &nbsp;' +
       displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    // attribution
-    $('attrib').textContent = r.title || '';
+    // attribution — hyperlink to source if available
+    const attrib = $('attrib');
+    attrib.innerHTML = '';
+    if (r.title) {
+      if (r.source_url) {
+        const a = document.createElement('a');
+        a.href = r.source_url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = r.title;
+        attrib.appendChild(a);
+      } else {
+        attrib.textContent = r.title;
+      }
+    }
 
     // player setup
     $('playerBar').classList.add('show');

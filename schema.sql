@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   transcript  TEXT,
   segments    JSONB,
   title       TEXT,
+  source_url  TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

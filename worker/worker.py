@@ -1,4 +1,6 @@
 import os, time, json, boto3, psycopg
+from dotenv import load_dotenv
+load_dotenv()
 import tempfile
 from faster_whisper import WhisperModel
 from sentence_transformers import SentenceTransformer
