@@ -8,6 +8,9 @@ someone *said* the thing, and the player seeks straight to it.
 **Live demo:** https://demo.tylerle.net
 (search and playback only - ingestion is an offline operator tool, see below)
 
+![impression-ss](frontend/assets/impression-ss1.jpg)
+
+
 ---
 
 ## Why I built this
@@ -17,10 +20,9 @@ I don't want to eyeball the exact timestamp or the exact podcast that I listened
 
 This tool helps -- and I hope it will for others -- me interact with a piece of auxiliary in a more approachable manner, 
 
-
 ## TLDR
 
-Type a query like *"What are the signals for SpaceX before they IPO"* and get back the
+Type a query like *"how to set goals"* and get back the
 exact n-segments of where a speaker discussed that idea, even if they never
 used those words. Click play and the audio jumps to that timestamp.
 
