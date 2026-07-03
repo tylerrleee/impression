@@ -5,12 +5,17 @@ The WS handler is async, so its blocking DB read goes through asyncio.to_thread.
 
 """
 import uuid, asyncio, os
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import FileResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from . import aws, db
+from .ratelimit import limiter
 from sentence_transformers import SentenceTransformer
 
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 embedder = SentenceTransformer("all-MiniLM-L6-v2")   # same model as the worker
 
 @app.get("/")
@@ -20,9 +25,10 @@ def index():
     return FileResponse("frontend/index.html")
 
 @app.post("/api/upload")
-# Duplicate upload? multiple upload 
+@limiter.limit("10/hour")
+# Duplicate upload? multiple upload
 ## future check for idempotent key
-def upload(file: UploadFile = File(...)):
+def upload(request: Request, file: UploadFile = File(...)):
     job_id = str(uuid.uuid4())
     s3_key = f"uploads/{job_id}/{file.filename}"
     aws.put_audio(s3_key, file.file.read(), file.content_type or "application/octet-stream")
@@ -32,7 +38,8 @@ def upload(file: UploadFile = File(...)):
     return {"job_id": job_id}
 
 @app.get("/api/search")
-def search(q: str, k: int = 5):
+@limiter.limit("30/minute")
+def search(request: Request, q: str, k: int = 5):
     vec  = embedder.encode(q, normalize_embeddings=True)
     rows = db.search_chunks(vec, k)
     return [{"job_id": r[0], "start": round(r[1], 1),
@@ -46,7 +53,8 @@ def chunks(job_id: str):
     return [{"start": round(r[0], 1), "end": round(r[1], 1), "text": r[2], "words": r[3]} for r in rows]
 
 @app.get("/api/audio_url")
-def audio_url(job_id: str):
+@limiter.limit("60/minute")
+def audio_url(request: Request, job_id: str):
     key = db.get_s3_key(job_id)
     if not key:
         raise HTTPException(404, "job not found")

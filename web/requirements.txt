@@ -3,5 +3,12 @@ uvicorn[standard]
 boto3
 psycopg[binary]
 python-multipart
+slowapi
 sentence-transformers
 pgvector
+
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-psycopg
+opentelemetry-instrumentation-botocore
